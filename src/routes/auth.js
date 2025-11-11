@@ -43,6 +43,10 @@ router.post("/signup", async (req, res) => {
   }
 });
 
+router.post("/ping", async (req, res) => {
+  res.json({"Message":"Hii From Servr"})
+})
+
 // ✅ Login route
 router.post("/login", async (req, res) => {
   try {
