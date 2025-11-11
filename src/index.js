@@ -17,7 +17,7 @@ app.use(
   cors({
     //  origin: ["http://localhost:5173", process.env.FRONTEND_URL], 
      // https://foodify-a9354mw1m-acboss1346s-projects.vercel.app/
-     origin: ["https://foodify-a9354mw1m-acboss1346s-projects.vercel.app", process.env.FRONTEND_URL], 
+     origin: ["foodify-ochre.vercel.app", process.env.FRONTEND_URL], 
 
     credentials: true,
   })
