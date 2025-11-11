@@ -43,9 +43,6 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-router.get("/ping", async (req, res) => {
-  res.status(200).json({"Message":"Hii From Server"})
-})
 
 // ✅ Login route
 router.post("/login", async (req, res) => {
