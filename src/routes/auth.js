@@ -32,8 +32,8 @@ router.post("/signup", async (req, res) => {
 
     res.cookie("access_token", token, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: false,  // change to true when deployed (https)
+      sameSite: "none", // ✅ cross-domain
+      secure: true,     // ✅ required for HTTPS
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -42,7 +42,6 @@ router.post("/signup", async (req, res) => {
     res.status(500).json({ message: "Signup failed" });
   }
 });
-
 
 // ✅ Login route
 router.post("/login", async (req, res) => {
@@ -64,8 +63,8 @@ router.post("/login", async (req, res) => {
 
     res.cookie("access_token", token, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: false,
+      sameSite: "none", // ✅ cross-domain
+      secure: true,     // ✅ required for HTTPS
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -77,7 +76,10 @@ router.post("/login", async (req, res) => {
 
 // ✅ Logout
 router.post("/logout", (req, res) => {
-  res.clearCookie("access_token");
+  res.clearCookie("access_token", {
+    sameSite: "none", // ✅ match cookie options
+    secure: true,
+  });
   res.json({ message: "Logged out" });
 });
 
