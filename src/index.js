@@ -16,12 +16,14 @@ app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS (Final Correct)
+// CORS (Final Corrected)
+// This single app.use(cors(...)) line is sufficient 
+// to handle all OPTIONS (preflight) requests correctly.
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://foodify-final.vercel.app",   // your real production frontend
+      "https://foodify-final.vercel.app", // your real production frontend
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
@@ -29,8 +31,7 @@ app.use(
   })
 );
 
-// Required for preflight CORS
-app.options("*", cors());
+// 🚨 REMOVED THE PROBLEM LINE: app.options("*", cors()); 🚨
 
 // Routes
 app.use("/api/auth", authRoutes);
