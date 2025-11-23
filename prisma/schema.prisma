@@ -17,14 +17,14 @@ model User {
   orders    Order[]
 }
 
-model FoodItem {
+model Food { // Renamed from FoodItem to Food
   id         Int         @id @default(autoincrement())
   name       String
   price      Float
   imageUrl   String?
   category   String
   cart       Cart[]
-  orderItems OrderItem[] // <-- NEW: Relation back to OrderItem
+  orderItems OrderItem[]
 }
 
 model Cart {
@@ -34,7 +34,7 @@ model Cart {
   quantity Int      @default(1)
 
   user     User     @relation(fields: [userId], references: [id])
-  food     FoodItem @relation(fields: [foodId], references: [id])
+  food     Food     @relation(fields: [foodId], references: [id]) // Updated relation reference
   
   @@unique([userId, foodId])
 }
@@ -42,22 +42,21 @@ model Cart {
 model Order {
   id          Int         @id @default(autoincrement())
   userId      Int
-  status      String      @default("PENDING") // Using CAPS for consistency with backend
+  status      String      @default("PENDING")
   total       Float
   createdAt   DateTime    @default(now())
 
   user        User        @relation(fields: [userId], references: [id])
-  orderItems  OrderItem[] // <-- NEW: Links to the items in this specific order
+  orderItems  OrderItem[]
 }
 
-// 🎯 NEW MODEL: Stores the specific items and prices for an order
 model OrderItem {
   id          Int      @id @default(autoincrement())
   orderId     Int
   foodId      Int
   quantity    Int
-  price       Float    // Price snapshot from FoodItem model
+  price       Float
 
   order       Order    @relation(fields: [orderId], references: [id])
-  food        FoodItem @relation(fields: [foodId], references: [id])
+  food        Food     @relation(fields: [foodId], references: [id]) // Updated relation reference
 }
