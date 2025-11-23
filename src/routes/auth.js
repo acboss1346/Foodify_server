@@ -6,10 +6,9 @@ import { signToken } from "../utils/jwt.js";
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// ✅ Signup route
 router.post("/signup", async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, role = "user" } = req.body;
 
     if (!username || !email || !password)
       return res.status(400).json({ message: "All fields required" });
@@ -24,26 +23,27 @@ router.post("/signup", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
-      data: { username, email, password: hash },
-      select: { id: true, username: true, email: true },
+      data: { username, email, password: hash, role },
+      select: { id: true, username: true, email: true, role: true },
     });
 
-    const token = signToken({ id: user.id, username: user.username });
+    const token = signToken({ id: user.id, username: user.username, role: user.role });
 
     res.cookie("access_token", token, {
       httpOnly: true,
-      sameSite: "none", // ✅ cross-domain
-      secure: true,     // ✅ required for HTTPS
+      sameSite: "none",
+      secure: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.status(201).json({ user });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Signup failed" });
   }
 });
 
-// ✅ Login route
+
 router.post("/login", async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -63,8 +63,8 @@ router.post("/login", async (req, res) => {
 
     res.cookie("access_token", token, {
       httpOnly: true,
-      sameSite: "none", // ✅ cross-domain
-      secure: true,     // ✅ required for HTTPS
+      sameSite: "none", 
+      secure: true,    
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -74,16 +74,16 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// ✅ Logout
+
 router.post("/logout", (req, res) => {
   res.clearCookie("access_token", {
-    sameSite: "none", // ✅ match cookie options
+    sameSite: "none", 
     secure: true,
   });
   res.json({ message: "Logged out" });
 });
 
-// ✅ Get current user
+
 router.get("/me", (req, res) => {
   try {
     const token = req.cookies.access_token;
