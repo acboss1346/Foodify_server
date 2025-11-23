@@ -16,12 +16,12 @@ app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS
+// CORS (Final Correct)
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://foodify-final.vercel.app",
+      "https://foodify-final.vercel.app",   // your real production frontend
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
@@ -29,7 +29,7 @@ app.use(
   })
 );
 
-// Important! Required for preflight CORS
+// Required for preflight CORS
 app.options("*", cors());
 
 // Routes
