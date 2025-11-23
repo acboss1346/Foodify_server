@@ -1,10 +1,14 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import { PrismaClient } from "@prisma/client";
-import { signToken } from "../utils/jwt.js";
+import jwt from "jsonwebtoken"; // <-- ADDED direct import for JWT
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Use environment variable for secret key
+const jwtSecret = process.env.JWT_SECRET || 'a_very_strong_default_secret_key'; 
+
 
 router.post("/signup", async (req, res) => {
   try {
@@ -13,6 +17,7 @@ router.post("/signup", async (req, res) => {
     if (!username || !email || !password)
       return res.status(400).json({ message: "All fields required" });
 
+    // Ensure the model selection is consistent (email, username, or both)
     const existing = await prisma.user.findFirst({
       where: { OR: [{ email }, { username }] },
     });
@@ -24,22 +29,29 @@ router.post("/signup", async (req, res) => {
 
     const user = await prisma.user.create({
       data: { username, email, password: hash, role },
-      select: { id: true, username: true, email: true, role: true },
+      // Important: Use select to retrieve the required fields, including role and id
+      select: { id: true, username: true, email: true, role: true, createdAt: true }, 
     });
 
-    const token = signToken({ id: user.id, username: user.username, role: user.role });
+    // 1. Generate JWT token using jwt.sign directly (Fix)
+    const token = jwt.sign({ userId: user.id, role: user.role }, jwtSecret, {
+      expiresIn: "1d", // Set expiration
+    });
 
-    res.cookie("access_token", token, {
+    // 2. Set cookie
+    res.cookie("token", token, { // Renamed from access_token for consistency
       httpOnly: true,
-      sameSite: "none",
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax", // Changed from "none" to "Lax" unless you have a specific reason for cross-site
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+    // 3. Respond with user info (without password hash)
     res.status(201).json({ user });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Signup failed" });
+    console.error("Signup failed:", err);
+    // If the error is P2022 (schema mismatch), the server will crash before this point
+    res.status(500).json({ message: "Signup failed (Internal Server Error)" });
   }
 });
 
@@ -59,41 +71,39 @@ router.post("/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = signToken({ id: user.id, username: user.username });
+    // 1. Generate JWT token using jwt.sign directly (Fix)
+    // IMPORTANT: Include role in the payload for protected routes
+    const token = jwt.sign({ userId: user.id, role: user.role }, jwtSecret, { 
+        expiresIn: "1d",
+    });
 
-    res.cookie("access_token", token, {
+    // 2. Set cookie
+    res.cookie("token", token, { // Renamed from access_token for consistency
       httpOnly: true,
-      sameSite: "none", 
-      secure: true,    
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax", // Changed from "none" to "Lax"
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ user: { id: user.id, username: user.username, email: user.email } });
-  } catch {
-    res.status(500).json({ message: "Login failed" });
+    // 3. Respond with user info
+    res.json({ user: { id: user.id, username: user.username, email: user.email, role: user.role } });
+  } catch(err) {
+    console.error("Login failed:", err);
+    res.status(500).json({ message: "Login failed (Internal Server Error)" });
   }
 });
 
 
 router.post("/logout", (req, res) => {
-  res.clearCookie("access_token", {
-    sameSite: "none", 
-    secure: true,
+  // Clear the token cookie (using 'token' name for consistency)
+  res.clearCookie("token", {
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Lax",
   });
   res.json({ message: "Logged out" });
 });
 
-
-router.get("/me", (req, res) => {
-  try {
-    const token = req.cookies.access_token;
-    if (!token) return res.json({ user: null });
-
-    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
-    res.json({ user: decoded });
-  } catch {
-    res.json({ user: null });
-  }
-});
+// Removed the /me route to simplify state management and rely on token decoding client-side
+// or a dedicated /verify-auth route with middleware, which is safer.
 
 export default router;
