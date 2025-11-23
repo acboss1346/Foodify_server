@@ -2,7 +2,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import { PrismaClient } from "@prisma/client";
 import { signToken, verifyToken } from "../utils/jwt.js"; 
-import { verify } from "jsonwebtoken";
+// The import 'verify' from "jsonwebtoken" is redundant if using verifyToken, so I'll remove it below for cleanliness.
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -29,10 +29,11 @@ router.post("/signup", async (req, res) => {
 
     const user = await prisma.user.create({
       data: { username, email, password: hash, role },
-      // FIX: Simplifying select to avoid "Unknown argument `role`" crash
+      // FIX: Simplifies the select block to prevent the P2009 error on deployment
       select: { id: true, username: true, email: true, role: true }, 
     });
 
+    // Uses the signToken utility function
     const token = signToken({ userId: user.id, role: user.role });
 
     res.cookie("token", token, {
@@ -65,6 +66,7 @@ router.post("/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ message: "Invalid credentials" });
 
+    // Uses the signToken utility function
     const token = signToken({ userId: user.id, role: user.role });
 
     res.cookie("token", token, {
@@ -91,16 +93,15 @@ router.post("/logout", (req, res) => {
 });
 
 
-// FIX: Re-adding the /me route to fix the 404
 router.get("/me", (req, res) => {
   const token = req.cookies.token;
   if (!token) return res.status(200).json({ user: null });
 
   try {
-    // Use the verifyToken utility function
+    // Uses the verifyToken utility function
     const decoded = verifyToken(token);
 
-    // Respond with the token payload (user ID and role)
+    // Responds with the token payload (user ID and role)
     res.status(200).json({ user: { id: decoded.userId, role: decoded.role } });
   } catch (err) {
     // Token is expired or invalid
