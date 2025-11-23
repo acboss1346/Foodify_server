@@ -16,16 +16,21 @@ app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 
+// CORS
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      process.env.FRONTEND_URL,
-      "https://foodify-final.vercel.app/",
+      "https://foodify-final.vercel.app",
     ],
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Important! Required for preflight CORS
+app.options("*", cors());
 
 // Routes
 app.use("/api/auth", authRoutes);
