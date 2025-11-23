@@ -8,40 +8,56 @@ generator client {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String   @unique
+  id        Int     @id @default(autoincrement())
+  username  String  @unique
+  email     String  @unique
   password  String
-  role      String   @default("user")
+  role      String  @default("user")
   cart      Cart[]
   orders    Order[]
 }
 
 model FoodItem {
-  id        Int      @id @default(autoincrement())
-  name      String
-  price     Float
-  imageUrl  String?
-  category  String
-  cart      Cart[]
+  id         Int         @id @default(autoincrement())
+  name       String
+  price      Float
+  imageUrl   String?
+  category   String
+  cart       Cart[]
+  orderItems OrderItem[] // <-- NEW: Relation back to OrderItem
 }
 
 model Cart {
-  id       Int     @id @default(autoincrement())
+  id       Int      @id @default(autoincrement())
   userId   Int
   foodId   Int
-  quantity Int  @default(1)
+  quantity Int      @default(1)
 
-  user   User     @relation(fields: [userId], references: [id])
-  food   FoodItem @relation(fields: [foodId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  food     FoodItem @relation(fields: [foodId], references: [id])
+  
+  @@unique([userId, foodId])
 }
 
 model Order {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  status    String   @default("Pending")
-  total     Float
-  createdAt DateTime @default(now())
+  id          Int         @id @default(autoincrement())
+  userId      Int
+  status      String      @default("PENDING") // Using CAPS for consistency with backend
+  total       Float
+  createdAt   DateTime    @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  orderItems  OrderItem[] // <-- NEW: Links to the items in this specific order
+}
+
+// 🎯 NEW MODEL: Stores the specific items and prices for an order
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  foodId      Int
+  quantity    Int
+  price       Float    // Price snapshot from FoodItem model
+
+  order       Order    @relation(fields: [orderId], references: [id])
+  food        FoodItem @relation(fields: [foodId], references: [id])
 }
