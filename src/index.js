@@ -21,7 +21,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       process.env.FRONTEND_URL,
-      "https://foodify-ochre.vercel.app",
+      "https://foodify-final.vercel.app/",
     ],
     credentials: true,
   })
