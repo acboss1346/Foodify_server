@@ -1,13 +1,14 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import { PrismaClient } from "@prisma/client";
-import jwt from "jsonwebtoken"; // <-- ADDED direct import for JWT
+import { signToken, verifyToken } from "../utils/jwt.js"; 
+import { verify } from "jsonwebtoken";
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Use environment variable for secret key
-const jwtSecret = process.env.JWT_SECRET || 'a_very_strong_default_secret_key'; 
+// Helper for setting cookie max age (7 days in milliseconds)
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 
 router.post("/signup", async (req, res) => {
@@ -17,7 +18,6 @@ router.post("/signup", async (req, res) => {
     if (!username || !email || !password)
       return res.status(400).json({ message: "All fields required" });
 
-    // Ensure the model selection is consistent (email, username, or both)
     const existing = await prisma.user.findFirst({
       where: { OR: [{ email }, { username }] },
     });
@@ -29,28 +29,22 @@ router.post("/signup", async (req, res) => {
 
     const user = await prisma.user.create({
       data: { username, email, password: hash, role },
-      // Important: Use select to retrieve the required fields, including role and id
-      select: { id: true, username: true, email: true, role: true, createdAt: true }, 
+      // FIX: Simplifying select to avoid "Unknown argument `role`" crash
+      select: { id: true, username: true, email: true, role: true }, 
     });
 
-    // 1. Generate JWT token using jwt.sign directly (Fix)
-    const token = jwt.sign({ userId: user.id, role: user.role }, jwtSecret, {
-      expiresIn: "1d", // Set expiration
-    });
+    const token = signToken({ userId: user.id, role: user.role });
 
-    // 2. Set cookie
-    res.cookie("token", token, { // Renamed from access_token for consistency
+    res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax", // Changed from "none" to "Lax" unless you have a specific reason for cross-site
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: "Lax", 
+      maxAge: SEVEN_DAYS_MS, 
     });
 
-    // 3. Respond with user info (without password hash)
     res.status(201).json({ user });
   } catch (err) {
     console.error("Signup failed:", err);
-    // If the error is P2022 (schema mismatch), the server will crash before this point
     res.status(500).json({ message: "Signup failed (Internal Server Error)" });
   }
 });
@@ -71,21 +65,15 @@ router.post("/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    // 1. Generate JWT token using jwt.sign directly (Fix)
-    // IMPORTANT: Include role in the payload for protected routes
-    const token = jwt.sign({ userId: user.id, role: user.role }, jwtSecret, { 
-        expiresIn: "1d",
-    });
+    const token = signToken({ userId: user.id, role: user.role });
 
-    // 2. Set cookie
-    res.cookie("token", token, { // Renamed from access_token for consistency
+    res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax", // Changed from "none" to "Lax"
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: "Lax",
+      maxAge: SEVEN_DAYS_MS, 
     });
 
-    // 3. Respond with user info
     res.json({ user: { id: user.id, username: user.username, email: user.email, role: user.role } });
   } catch(err) {
     console.error("Login failed:", err);
@@ -95,7 +83,6 @@ router.post("/login", async (req, res) => {
 
 
 router.post("/logout", (req, res) => {
-  // Clear the token cookie (using 'token' name for consistency)
   res.clearCookie("token", {
     secure: process.env.NODE_ENV === "production",
     sameSite: "Lax",
@@ -103,7 +90,23 @@ router.post("/logout", (req, res) => {
   res.json({ message: "Logged out" });
 });
 
-// Removed the /me route to simplify state management and rely on token decoding client-side
-// or a dedicated /verify-auth route with middleware, which is safer.
+
+// FIX: Re-adding the /me route to fix the 404
+router.get("/me", (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(200).json({ user: null });
+
+  try {
+    // Use the verifyToken utility function
+    const decoded = verifyToken(token);
+
+    // Respond with the token payload (user ID and role)
+    res.status(200).json({ user: { id: decoded.userId, role: decoded.role } });
+  } catch (err) {
+    // Token is expired or invalid
+    res.clearCookie("token", { secure: process.env.NODE_ENV === "production", sameSite: "Lax" });
+    res.status(200).json({ user: null });
+  }
+});
 
 export default router;
