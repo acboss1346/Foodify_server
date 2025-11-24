@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.js";
 import foodRoutes from "./routes/food.js";
 import cartRoutes from "./routes/cart.js";
 import orderRoutes from "./routes/order.js";
+// ... existing imports ...
 
 dotenv.config();
 const app = express();
@@ -16,17 +17,38 @@ app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 
+// Define allowed origins for the server
+const allowedOrigins = [
+  "http://localhost:5173", // Local client dev environment
+  process.env.FRONTEND_URL, // Used by Render from your env variable
+  "https://foodify-final.vercel.app" // Explicitly define the Vercel production URL (no trailing slash)
+];
+
+// ----------------------------------------------------------------
+// NOTE: Use a function for 'origin' to handle undefined origins (like some mobile requests)
+// and filter out the undefined environment variable if it's missing.
+// This is the robust way to handle multiple origins and variables.
+// ----------------------------------------------------------------
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      process.env.FRONTEND_URL,
-      "https://foodify-final.vercel.app/",
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g., cURL, same-origin requests)
+      if (!origin) return callback(null, true);
+
+      // Check if the origin is in our allowed list
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        // Log the blocked origin for debugging
+        console.log(`CORS Blocked: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   })
 );
 
+// ... rest of your code ...
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/foods", foodRoutes);
