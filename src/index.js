@@ -7,49 +7,56 @@ import authRoutes from "./routes/auth.js";
 import foodRoutes from "./routes/food.js";
 import cartRoutes from "./routes/cart.js";
 import orderRoutes from "./routes/order.js";
-// ... existing imports ...
 
+// Load environment variables
 dotenv.config();
 const app = express();
 
 // Middleware
 app.use(helmet());
 app.use(express.json());
-app.use(cookieParser());
+app.use(cookieParser()); // Required for handling authentication cookies
 
-// Define allowed origins for the server
+// --- CORS Configuration (Fixes the recurring issue) ---
+
+// Define allowed base origins (filter(Boolean) removes undefined/falsy values)
 const allowedOrigins = [
   "http://localhost:5173", // Local client dev environment
-  process.env.FRONTEND_URL, // Used by Render from your env variable
-  "https://foodify-final.vercel.app" // Explicitly define the Vercel production URL (no trailing slash)
-];
+  process.env.FRONTEND_URL, // Used if set in Render environment
+  "https://foodify-final.vercel.app" // Explicit Vercel production URL
+].filter(Boolean);
 
-// ----------------------------------------------------------------
-// NOTE: Use a function for 'origin' to handle undefined origins (like some mobile requests)
-// and filter out the undefined environment variable if it's missing.
-// This is the robust way to handle multiple origins and variables.
-// ----------------------------------------------------------------
+// CORS middleware setup
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g., cURL, same-origin requests)
+      // 1. Allow requests with no origin (e.g., cURL, server-side requests)
       if (!origin) return callback(null, true);
 
-      // Check if the origin is in our allowed list
+      // 2. Check if the origin is in our explicitly allowed list
       if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        // Log the blocked origin for debugging
-        console.log(`CORS Blocked: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
+        return callback(null, true);
       }
+
+      // 3. CRITICAL FIX: Allow all Vercel preview domains for your project.
+      // Checks if the domain ends with your Vercel project's suffix.
+      const projectSpecificRegex = /-acboss1346s-projects\.vercel\.app$/; 
+
+      if (projectSpecificRegex.test(origin)) {
+          return callback(null, true);
+      }
+
+      // Block all others and log the blocked origin
+      console.log(`CORS Blocked: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     },
-    credentials: true,
+    credentials: true, // CRITICAL: Allows cookies/auth tokens to be sent/received
   })
 );
 
-// ... rest of your code ...
-// Routes
+// --- Routes ---
+// Note: These routes all start with '/api' which means the client's BASE_URL 
+// must end with '/api' (e.g., https://foodify-server-1.onrender.com/api)
 app.use("/api/auth", authRoutes);
 app.use("/api/foods", foodRoutes);
 app.use("/api/cart", cartRoutes);
@@ -59,5 +66,6 @@ app.get("/", (req, res) => res.send("Backend running"));
 app.get("/ping", (req, res) => res.send("OK"));
 
 // Server start
+// Use process.env.PORT (set by Render) or fallback to 8080
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
