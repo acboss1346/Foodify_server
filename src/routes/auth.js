@@ -1,15 +1,10 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import { PrismaClient } from "@prisma/client";
-import { signToken, verifyToken } from "../utils/jwt.js"; 
-// The import 'verify' from "jsonwebtoken" is redundant if using verifyToken, so I'll remove it below for cleanliness.
+import { signToken } from "../utils/jwt.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
-
-// Helper for setting cookie max age (7 days in milliseconds)
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
 
 router.post("/signup", async (req, res) => {
   try {
@@ -29,24 +24,22 @@ router.post("/signup", async (req, res) => {
 
     const user = await prisma.user.create({
       data: { username, email, password: hash, role },
-      // FIX: Simplifies the select block to prevent the P2009 error on deployment
-      select: { id: true, username: true, email: true, role: true }, 
+      select: { id: true, username: true, email: true, role: true },
     });
 
-    // Uses the signToken utility function
-    const token = signToken({ userId: user.id, role: user.role });
+    const token = signToken({ id: user.id, username: user.username, role: user.role });
 
-    res.cookie("token", token, {
+    res.cookie("access_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax", 
-      maxAge: SEVEN_DAYS_MS, 
+      sameSite: "none",
+      secure: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.status(201).json({ user });
   } catch (err) {
-    console.error("Signup failed:", err);
-    res.status(500).json({ message: "Signup failed (Internal Server Error)" });
+    console.error(err);
+    res.status(500).json({ message: "Signup failed" });
   }
 });
 
@@ -66,47 +59,40 @@ router.post("/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    // Uses the signToken utility function
-    const token = signToken({ userId: user.id, role: user.role });
+    const token = signToken({ id: user.id, username: user.username });
 
-    res.cookie("token", token, {
+    res.cookie("access_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax",
-      maxAge: SEVEN_DAYS_MS, 
+      sameSite: "none", 
+      secure: true,    
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ user: { id: user.id, username: user.username, email: user.email, role: user.role } });
-  } catch(err) {
-    console.error("Login failed:", err);
-    res.status(500).json({ message: "Login failed (Internal Server Error)" });
+    res.json({ user: { id: user.id, username: user.username, email: user.email } });
+  } catch {
+    res.status(500).json({ message: "Login failed" });
   }
 });
 
 
 router.post("/logout", (req, res) => {
-  res.clearCookie("token", {
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Lax",
+  res.clearCookie("access_token", {
+    sameSite: "none", 
+    secure: true,
   });
   res.json({ message: "Logged out" });
 });
 
 
 router.get("/me", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(200).json({ user: null });
-
   try {
-    // Uses the verifyToken utility function
-    const decoded = verifyToken(token);
+    const token = req.cookies.access_token;
+    if (!token) return res.json({ user: null });
 
-    // Responds with the token payload (user ID and role)
-    res.status(200).json({ user: { id: decoded.userId, role: decoded.role } });
-  } catch (err) {
-    // Token is expired or invalid
-    res.clearCookie("token", { secure: process.env.NODE_ENV === "production", sameSite: "Lax" });
-    res.status(200).json({ user: null });
+    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    res.json({ user: decoded });
+  } catch {
+    res.json({ user: null });
   }
 });
 
