@@ -53,7 +53,6 @@ router.put("/update/:id", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-// Remove cart item
 router.delete("/remove/:id", requireAuth, async (req, res) => {
   await prisma.cart.delete({
     where: { id: Number(req.params.id) },
