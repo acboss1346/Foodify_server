@@ -6,6 +6,7 @@ import { signToken } from "../utils/jwt.js";
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// --- SIGNUP ---
 router.post("/signup", async (req, res) => {
   try {
     const { username, email, password, role = "user" } = req.body;
@@ -27,6 +28,7 @@ router.post("/signup", async (req, res) => {
       select: { id: true, username: true, email: true, role: true },
     });
 
+    // Generate token WITH role
     const token = signToken({ id: user.id, username: user.username, role: user.role });
 
     res.cookie("access_token", token, {
@@ -43,7 +45,7 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-
+// --- LOGIN ---
 router.post("/login", async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -59,7 +61,12 @@ router.post("/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = signToken({ id: user.id, username: user.username });
+    // ✅ FIX: Include role in token
+    const token = signToken({ 
+      id: user.id, 
+      username: user.username, 
+      role: user.role 
+    });
 
     res.cookie("access_token", token, {
       httpOnly: true,
@@ -68,13 +75,22 @@ router.post("/login", async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ user: { id: user.id, username: user.username, email: user.email } });
-  } catch {
+    // ✅ FIX: Include role in response
+    res.json({ 
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        email: user.email, 
+        role: user.role 
+      } 
+    });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Login failed" });
   }
 });
 
-
+// --- LOGOUT ---
 router.post("/logout", (req, res) => {
   res.clearCookie("access_token", {
     sameSite: "none", 
@@ -83,7 +99,7 @@ router.post("/logout", (req, res) => {
   res.json({ message: "Logged out" });
 });
 
-
+// --- GET ME ---
 router.get("/me", (req, res) => {
   try {
     const token = req.cookies.access_token;
