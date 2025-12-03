@@ -8,8 +8,48 @@ const prisma = new PrismaClient();
 
 
 router.get("/", async (req, res) => {
-  const foods = await prisma.foodItem.findMany();
-  res.json(foods);
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+    const sortBy = req.query.sortBy || "id";
+    const sortOrder = req.query.sortOrder === "desc" ? "desc" : "asc";
+    const category = req.query.category || "";
+
+    const where = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { category: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    if (category) {
+      where.category = category;
+    }
+
+    const total = await prisma.foodItem.count({ where });
+    const foods = await prisma.foodItem.findMany({
+      where,
+      orderBy: { [sortBy]: sortOrder },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    res.json({
+      data: foods,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching foods:", error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 
@@ -54,6 +94,9 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
     await prisma.cart.deleteMany({ where: { foodId: id } });
 
 
+    await prisma.orderItem.deleteMany({ where: { foodId: id } });
+
+
     await prisma.foodItem.delete({
       where: { id },
     });
@@ -61,10 +104,6 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
     res.json({ message: "Food item deleted" });
   } catch (error) {
     console.error("Delete error:", error);
-
-    if (error.code === 'P2003') {
-      return res.status(400).json({ message: "Cannot delete: This item is part of past orders." });
-    }
     res.status(500).json({ message: "Server error during deletion" });
   }
 });
